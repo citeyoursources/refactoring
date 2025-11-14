@@ -9,8 +9,8 @@ import java.util.Map;
  */
 
 public class StatementPrinter {
+    private static Map<String, Play> plays;
     private Invoice invoice;
-    private Map<String, Play> plays;
 
     public StatementPrinter(Invoice invoice, Map<String, Play> plays) {
         this.setInvoice(invoice);
@@ -33,22 +33,22 @@ public class StatementPrinter {
         frmt = NumberFormat.getCurrencyInstance(Locale.US);
 
         for (Performance performance : getInvoice().getPerformances()) {
-            final Play play = getPlays().get(performance.getPlayID());
 
-            final int thisAmount = getThisAmount(performance, play);
+            final int thisAmount = getAmount(performance);
 
             // add volume credits
             volumeCredits += Math.max(performance.getAudience() - Constants.BASE_VOLUME_CREDIT_THRESHOLD, 0);
             // add extra credit for every five comedy attendees
-            if ("comedy".equals(play.getType())) {
+            if ("comedy".equals(getPlay(performance).getType())) {
                 volumeCredits += performance.getAudience() / Constants.COMEDY_EXTRA_VOLUME_FACTOR;
             }
 
             // print line for this order
             final String match = "  %s: %s (%s seats)%n";
-            final String name = play.getName();
+            final String name = getPlay(performance).getName();
+            final int audience = performance.getAudience();
 
-            result.append(String.format(match, name, frmt.format(thisAmount / percentFactor), performance.getAudience()));
+            result.append(String.format(match, name, frmt.format(thisAmount / percentFactor), audience));
             totalAmount += thisAmount;
         }
 
@@ -57,28 +57,32 @@ public class StatementPrinter {
         return result.toString();
     }
 
-    private static int getThisAmount(Performance p, Play play) {
+    private static Play getPlay(Performance performance) {
+        return getPlays().get(performance.getPlayID());
+    }
+
+    private static int getAmount(Performance performance) {
         int result = 0;
-        switch (play.getType()) {
+        switch (getPlay(performance).getType()) {
             case "tragedy":
                 result = Constants.TRAGEDY_BASE_AMOUNT;
-                if (p.getAudience() > Constants.TRAGEDY_AUDIENCE_THRESHOLD) {
+                if (performance.getAudience() > Constants.TRAGEDY_AUDIENCE_THRESHOLD) {
                     final int tragedyOverBaseCapacityPerPerson = Constants.TRAGEDY_OVER_BASE_CAPACITY_PER_PERSON;
                     final int tragedyAudienceThreshold = Constants.TRAGEDY_AUDIENCE_THRESHOLD;
-                    result += tragedyOverBaseCapacityPerPerson * (p.getAudience() - tragedyAudienceThreshold);
+                    result += tragedyOverBaseCapacityPerPerson * (performance.getAudience() - tragedyAudienceThreshold);
                 }
                 break;
             case "comedy":
                 result = Constants.COMEDY_BASE_AMOUNT;
-                if (p.getAudience() > Constants.COMEDY_AUDIENCE_THRESHOLD) {
+                if (performance.getAudience() > Constants.COMEDY_AUDIENCE_THRESHOLD) {
                     result += Constants.COMEDY_OVER_BASE_CAPACITY_AMOUNT
                             + (Constants.COMEDY_OVER_BASE_CAPACITY_PER_PERSON
-                            * (p.getAudience() - Constants.COMEDY_AUDIENCE_THRESHOLD));
+                            * (performance.getAudience() - Constants.COMEDY_AUDIENCE_THRESHOLD));
                 }
-                result += Constants.COMEDY_AMOUNT_PER_AUDIENCE * p.getAudience();
+                result += Constants.COMEDY_AMOUNT_PER_AUDIENCE * performance.getAudience();
                 break;
             default:
-                throw new RuntimeException(String.format("unknown type: %s", play.getType()));
+                throw new RuntimeException(String.format("unknown type: %s", getPlay(performance).getType()));
         }
         return result;
     }
@@ -91,11 +95,11 @@ public class StatementPrinter {
         this.invoice = invoice;
     }
 
-    public Map<String, Play> getPlays() {
+    public static Map<String, Play> getPlays() {
         return plays;
     }
 
     public void setPlays(Map<String, Play> plays) {
-        this.plays = plays;
+        StatementPrinter.plays = plays;
     }
 }
